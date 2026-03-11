@@ -14,12 +14,22 @@ const el = {
   selOut: document.getElementById("selOut"),
   selIn: document.getElementById("selIn"),
   stimBtn: document.getElementById("stimBtn"),
+  pulseSpeed: document.getElementById("pulseSpeed"),
+  pulseStrength: document.getElementById("pulseStrength"),
+  hopSelect: document.getElementById("hopSelect"),
+  toggleSynapses: document.getElementById("toggleSynapses"),
+  fpsLabel: document.getElementById("fpsLabel"),
+  screenshotBtn: document.getElementById("screenshotBtn"),
+  tooltip: document.getElementById("tooltip"),
 };
 
 const renderer = new ConnectomeRenderer(el.container);
 const controls = createOrbitControls(renderer.camera, renderer.getDomElement());
 
 let selectedIndex = null;
+let lastFrameTime = performance.now();
+let hideSynapses = false;
+let lastTooltipTime = 0;
 
 function setHint(text) {
   el.hint.textContent = text;
@@ -96,6 +106,40 @@ function attachInteraction() {
       renderer.setIsolation(alreadyIsolated ? null : selectedIndex);
     }
   });
+
+  dom.addEventListener("mousemove", (ev) => {
+    const now = performance.now();
+    if (now - lastTooltipTime < 80) return;
+    lastTooltipTime = now;
+    const idx = renderer.pick(ev.clientX, ev.clientY);
+    if (idx == null) {
+      el.tooltip.classList.add("hidden");
+      return;
+    }
+    const meta = renderer.peekMetadata(idx);
+    el.tooltip.innerHTML = `Index ${meta.index}<br/>ID ${meta.neuronId}<br/>Type ${meta.type ?? "—"}<br/>Out ${meta.outCount} / In ${meta.inCount}`;
+    el.tooltip.style.left = `${ev.clientX + 12}px`;
+    el.tooltip.style.top = `${ev.clientY + 12}px`;
+    el.tooltip.classList.remove("hidden");
+  });
+
+  el.pulseSpeed.addEventListener("input", (e) => {
+    renderer.pulseSpeed = parseFloat(e.target.value);
+  });
+  el.pulseStrength.addEventListener("input", (e) => {
+    renderer.setPulseStrength(parseFloat(e.target.value));
+  });
+  el.hopSelect.addEventListener("change", (e) => {
+    renderer.setHopIsolation(parseInt(e.target.value, 10));
+  });
+  el.toggleSynapses.addEventListener("click", () => {
+    hideSynapses = !hideSynapses;
+    renderer.toggleSynapses(!hideSynapses);
+    el.toggleSynapses.textContent = hideSynapses ? "Show" : "Hide";
+  });
+  el.screenshotBtn.addEventListener("click", () => {
+    renderer.captureScreenshot();
+  });
 }
 
 async function pollActivityLoop() {
@@ -115,6 +159,20 @@ async function pollActivityLoop() {
 
 function animate() {
   requestAnimationFrame(animate);
+  const now = performance.now();
+  const dt = now - lastFrameTime;
+  if (dt > 0) {
+    const fps = 1000 / dt;
+    el.fpsLabel.textContent = fps.toFixed(0);
+    if (fps < 40 && !hideSynapses) {
+      renderer.toggleSynapses(false);
+      hideSynapses = true;
+    } else if (fps > 55 && hideSynapses) {
+      renderer.toggleSynapses(true);
+      hideSynapses = false;
+    }
+  }
+  lastFrameTime = now;
   renderer.render(controls);
 }
 

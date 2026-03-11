@@ -58,10 +58,42 @@
             <button id="stimBtn" disabled>Stimulate</button>
           </div>
         </div>
+
+        <div class="panel" id="controlsPanel">
+          <div class="subtitle">Visualization</div>
+          <div class="row"><span class="label">Legend</span><span id="legendSwatch">inactive → active → spike</span></div>
+          <div class="row slider">
+            <span class="label">Pulse speed</span>
+            <input id="pulseSpeed" type="range" min="0.5" max="3.0" step="0.1" value="1.6" />
+          </div>
+          <div class="row slider">
+            <span class="label">Pulse brightness</span>
+            <input id="pulseStrength" type="range" min="0.2" max="2.0" step="0.1" value="0.8" />
+          </div>
+          <div class="row slider">
+            <span class="label">Hop isolate</span>
+            <select id="hopSelect">
+              <option value="0">Off</option>
+              <option value="1" selected>1-hop</option>
+              <option value="2">2-hop</option>
+            </select>
+          </div>
+          <div class="row">
+            <span class="label">Synapses</span>
+            <button id="toggleSynapses">Hide</button>
+          </div>
+          <div class="row">
+            <span class="label">FPS</span><span id="fpsLabel">—</span>
+          </div>
+          <div class="actions">
+            <button id="screenshotBtn">Screenshot</button>
+          </div>
+        </div>
       </div>
 
       <div id="canvasContainer"></div>
       <div id="hint">Loading connectome…</div>
+      <div id="tooltip" class="tooltip hidden"></div>
     </div>
 
     <script type="module" src="/static/app.js"></script>

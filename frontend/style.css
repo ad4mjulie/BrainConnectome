@@ -88,6 +88,40 @@ body {
   gap: 10px;
 }
 
+.slider {
+  align-items: center;
+}
+
+input[type="range"] {
+  width: 140px;
+}
+
+select {
+  background: rgba(15, 22, 44, 0.75);
+  color: var(--text);
+  border: 1px solid rgba(115, 170, 255, 0.35);
+  border-radius: 8px;
+  padding: 4px 6px;
+}
+
+#tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: rgba(10, 14, 26, 0.92);
+  border: 1px solid rgba(115, 170, 255, 0.35);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 12px;
+  max-width: 220px;
+  z-index: 20;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.tooltip.hidden {
+  display: none;
+}
+
 button {
   appearance: none;
   border: 1px solid rgba(115, 170, 255, 0.35);
