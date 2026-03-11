@@ -131,7 +131,6 @@ export class ConnectomeRenderer {
     this.synapseShaders = null;
 
     this.clock = new THREE.Clock();
-    this.signalStrength = 0.0;
 
     this.resize();
     window.addEventListener("resize", () => this.resize());
@@ -398,7 +397,6 @@ export class ConnectomeRenderer {
       budget--;
       if (this.pulses.length > this.maxPulses) this.pulses.shift();
     }
-    this.signalStrength = 1.0;
     return budget;
   }
 
@@ -439,11 +437,6 @@ export class ConnectomeRenderer {
     const t = this.clock.elapsedTime;
     if (this.synapseLines && this.synapseLines.material.uniforms?.time) {
       this.synapseLines.material.uniforms.time.value = t;
-    }
-    if (this.synapseLines && this.synapseLines.material.uniforms?.signalStrength) {
-      // Exponential decay of signal visibility
-      this.signalStrength *= Math.exp(-4.0 * delta);
-      this.synapseLines.material.uniforms.signalStrength.value = this.signalStrength;
     }
     if (this.neuronMesh && this.neuronMesh.material.uniforms?.activityLevel) {
       this.neuronMesh.material.uniforms.activityLevel.value = 1.0;
