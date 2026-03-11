@@ -4,8 +4,10 @@ uniform float signalStrength;
 
 varying float vT;
 varying float vTime;
+varying float vMask;
 
 void main() {
+    if (vMask < 0.5) discard;
     float speed = 1.6;
     float phase = fract(vTime * speed - vT);
     float pulse = exp(-25.0 * phase * phase);

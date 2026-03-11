@@ -88,6 +88,14 @@ function attachInteraction() {
       setHint(`Stimulate error: ${e.message}`);
     }
   });
+
+  window.addEventListener("keydown", (ev) => {
+    if (ev.key === "n" || ev.key === "N") {
+      if (selectedIndex == null) return;
+      const alreadyIsolated = renderer.isolatedIndex === selectedIndex;
+      renderer.setIsolation(alreadyIsolated ? null : selectedIndex);
+    }
+  });
 }
 
 async function pollActivityLoop() {

@@ -1,6 +1,7 @@
 precision highp float;
 
 varying float vActivity;
+varying float vVisible;
 
 // Map activity to gradient:
 // 0.0 -> dark blue, 0.5 -> yellow, 1.0 -> red
@@ -16,6 +17,7 @@ vec3 activityColor(float a) {
 }
 
 void main() {
+    if (vVisible < 0.5) discard;
     // Fake a soft spherical falloff based on screen-space distance from center
     vec2 uv = gl_PointCoord * 2.0 - 1.0;
     float r = dot(uv, uv);

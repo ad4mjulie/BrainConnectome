@@ -103,6 +103,7 @@ export class ConnectomeRenderer {
     this.selectedIndex = null;
 
     this.neuronActivity = null; // Float32Array per instance
+    this.neuronVisible = null; // Float32Array per instance
 
     this.maxPulses = 2200;
     this.pulses = []; // {a,b,t0,dur}
@@ -131,6 +132,9 @@ export class ConnectomeRenderer {
     this.synapseShaders = null;
 
     this.clock = new THREE.Clock();
+    this.isolatedIndex = null;
+    this.signalStrength = 0.0;
+    this.isolatedIndex = null;
 
     this.resize();
     window.addEventListener("resize", () => this.resize());
@@ -199,6 +203,9 @@ export class ConnectomeRenderer {
     const activityAttr = new THREE.InstancedBufferAttribute(new Float32Array(N), 1);
     geom.setAttribute("activity", activityAttr);
     this.neuronActivity = activityAttr.array;
+    const visibleAttr = new THREE.InstancedBufferAttribute(new Float32Array(N).fill(1.0), 1);
+    geom.setAttribute("visible", visibleAttr);
+    this.neuronVisible = visibleAttr.array;
 
     const mat = new THREE.ShaderMaterial({
       vertexShader: this.neuronShaders.vert,
@@ -250,6 +257,7 @@ export class ConnectomeRenderer {
     const M = pre.length;
     const positions = new Float32Array(M * 2 * 3);
     const tpos = new Float32Array(M * 2);
+    const mask = new Float32Array(M * 2).fill(1.0);
     for (let e = 0; e < M; e++) {
       const a = pre[e];
       const b = post[e];
@@ -268,11 +276,14 @@ export class ConnectomeRenderer {
       positions[o + 5] = bz;
       tpos[e * 2] = 0.0;
       tpos[e * 2 + 1] = 1.0;
+      mask[e * 2] = 1.0;
+      mask[e * 2 + 1] = 1.0;
     }
 
     const geom = new THREE.BufferGeometry();
     geom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     geom.setAttribute("tpos", new THREE.BufferAttribute(tpos, 1));
+    geom.setAttribute("mask", new THREE.BufferAttribute(mask, 1));
     const mat = new THREE.ShaderMaterial({
       vertexShader: this.synapseShaders.vert,
       fragmentShader: this.synapseShaders.frag,
@@ -356,6 +367,38 @@ export class ConnectomeRenderer {
       this.highlightOutgoing = build(outgoing, COLORS.outgoing);
       this.scene.add(this.highlightOutgoing);
     }
+  }
+
+  isolateSelected(idx, enable = true) {
+    if (idx == null || !this.neuronVisible || !this.synapseLines) return;
+    this.isolatedIndex = enable ? idx : null;
+    const N = this.neuronIds.length;
+    if (!enable) {
+      this.neuronVisible.fill(1.0);
+      this.synapseLines.geometry.attributes.mask.array.fill(1.0);
+    } else {
+      this.neuronVisible.fill(0.0);
+      this.synapseLines.geometry.attributes.mask.array.fill(0.0);
+      const neighbors = new Set();
+      const outE = this.outEdges?.[idx] ?? [];
+      const inE = this.inEdges?.[idx] ?? [];
+      const selectedEdges = [...outE, ...inE];
+      for (const e of selectedEdges) {
+        const a = this.synPre[e];
+        const b = this.synPost[e];
+        neighbors.add(a);
+        neighbors.add(b);
+        const o = e * 2;
+        this.synapseLines.geometry.attributes.mask.array[o] = 1.0;
+        this.synapseLines.geometry.attributes.mask.array[o + 1] = 1.0;
+      }
+      this.neuronVisible[idx] = 1.0;
+      neighbors.forEach((n) => {
+        this.neuronVisible[n] = 1.0;
+      });
+    }
+    this.neuronMesh.geometry.attributes.visible.needsUpdate = true;
+    this.synapseLines.geometry.attributes.mask.needsUpdate = true;
   }
 
   updateActivity(activity, spikes) {
@@ -456,6 +499,42 @@ export class ConnectomeRenderer {
     if (!this.flashUntil || index == null) return;
     if (index < 0 || index >= this.flashUntil.length) return;
     this.flashUntil[index] = performance.now() + ms;
+  }
+
+  isolateSelected(idx, enable = true) {
+    if (!this.neuronVisible || !this.synapseLines) return;
+    this.isolatedIndex = enable ? idx : null;
+    if (!enable || idx == null) {
+      this.neuronVisible.fill(1.0);
+      this.synapseLines.geometry.attributes.mask.array.fill(1.0);
+    } else {
+      this.neuronVisible.fill(0.0);
+      this.synapseLines.geometry.attributes.mask.array.fill(0.0);
+      const neighbors = new Set();
+      const outE = this.outEdges?.[idx] ?? [];
+      const inE = this.inEdges?.[idx] ?? [];
+      const selectedEdges = [...outE, ...inE];
+      for (const e of selectedEdges) {
+        const a = this.synPre[e];
+        const b = this.synPost[e];
+        neighbors.add(a);
+        neighbors.add(b);
+        const o = e * 2;
+        this.synapseLines.geometry.attributes.mask.array[o] = 1.0;
+        this.synapseLines.geometry.attributes.mask.array[o + 1] = 1.0;
+      }
+      this.neuronVisible[idx] = 1.0;
+      neighbors.forEach((n) => {
+        this.neuronVisible[n] = 1.0;
+      });
+    }
+    this.neuronMesh.geometry.attributes.visible.needsUpdate = true;
+    this.synapseLines.geometry.attributes.mask.needsUpdate = true;
+  }
+
+  setIsolation(idx) {
+    if (idx == null) this.isolateSelected(null, false);
+    else this.isolateSelected(idx, true);
   }
 
   async loadShaders() {
