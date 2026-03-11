@@ -133,8 +133,9 @@ export class ConnectomeRenderer {
 
     this.clock = new THREE.Clock();
     this.isolatedIndex = null;
-    this.signalStrength = 0.0;
-    this.isolatedIndex = null;
+    this.signalStrength = 0.5;
+    this.pulseSpeed = 1.6;
+    this.pulseStrength = 0.8;
 
     this.resize();
     window.addEventListener("resize", () => this.resize());
@@ -479,7 +480,10 @@ export class ConnectomeRenderer {
     const delta = this.clock.getDelta();
     const t = this.clock.elapsedTime;
     if (this.synapseLines && this.synapseLines.material.uniforms?.time) {
-      this.synapseLines.material.uniforms.time.value = t;
+      this.synapseLines.material.uniforms.time.value = t * this.pulseSpeed;
+    }
+    if (this.synapseLines && this.synapseLines.material.uniforms?.signalStrength) {
+      this.synapseLines.material.uniforms.signalStrength.value = this.signalStrength;
     }
     if (this.neuronMesh && this.neuronMesh.material.uniforms?.activityLevel) {
       this.neuronMesh.material.uniforms.activityLevel.value = 1.0;
@@ -535,6 +539,35 @@ export class ConnectomeRenderer {
   setIsolation(idx) {
     if (idx == null) this.isolateSelected(null, false);
     else this.isolateSelected(idx, true);
+  }
+
+  setPulseStrength(v) {
+    this.signalStrength = v;
+    if (this.synapseLines?.material.uniforms?.signalStrength) {
+      this.synapseLines.material.uniforms.signalStrength.value = v;
+    }
+  }
+
+  setHopIsolation(hops) {
+    this.hopDepth = hops;
+  }
+
+  toggleSynapses(show) {
+    if (this.synapseLines) {
+      this.synapseLines.visible = show;
+    }
+  }
+
+  captureScreenshot() {
+    const dataURL = this.renderer.domElement.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = dataURL;
+    a.download = "connectome.png";
+    a.click();
+  }
+
+  peekMetadata(i) {
+    return this._selectedMetadata(i);
   }
 
   async loadShaders() {
