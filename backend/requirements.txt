@@ -1,0 +1,10 @@
+fastapi>=0.110
+uvicorn[standard]>=0.27
+numpy>=1.26
+pandas>=2.2
+pyarrow>=15.0
+networkx>=3.2
+brian2>=2.6
+
+# Optional: used only by data/scripts/download_neuprint_subset.py
+neuprint-python>=0.4.26,<0.6

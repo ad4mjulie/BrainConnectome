@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Drosophila Connectome Simulator</title>
+    <link rel="stylesheet" href="/static/style.css" />
+
+    <!-- Three.js via CDN (no build step). For offline use, see README. -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.162.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.162.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app">
+      <div id="hud">
+        <div class="panel">
+          <div class="title">Drosophila Connectome Simulator</div>
+          <div class="row">
+            <span class="label">Click</span><span>Select neuron</span>
+          </div>
+          <div class="row">
+            <span class="label">Shift+Click</span><span>Stimulate neuron</span>
+          </div>
+        </div>
+
+        <div class="panel" id="simPanel">
+          <div class="row">
+            <span class="label">t</span><span id="simTime">0 ms</span>
+          </div>
+          <div class="row">
+            <span class="label">Spikes</span><span id="simSpikes">0</span>
+          </div>
+          <div class="row">
+            <span class="label">Neurons</span><span id="simNeurons">—</span>
+          </div>
+          <div class="row">
+            <span class="label">Synapses</span><span id="simEdges">—</span>
+          </div>
+        </div>
+
+        <div class="panel" id="neuronPanel">
+          <div class="subtitle">Selected neuron</div>
+          <div class="meta">
+            Index is the 0-based position used by the simulator. Type is the neuPrint cell type label (if available).
+          </div>
+          <div class="row"><span class="label">Index</span><span id="selIndex">—</span></div>
+          <div class="row"><span class="label">Neuron ID</span><span id="selId">—</span></div>
+          <div class="row"><span class="label">Type</span><span id="selType">—</span></div>
+          <div class="row"><span class="label">Out</span><span id="selOut">—</span></div>
+          <div class="row"><span class="label">In</span><span id="selIn">—</span></div>
+          <div class="actions">
+            <button id="stimBtn" disabled>Stimulate</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="canvasContainer"></div>
+      <div id="hint">Loading connectome…</div>
+    </div>
+
+    <script type="module" src="/static/app.js"></script>
+  </body>
+</html>
