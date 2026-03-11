@@ -1,6 +1,6 @@
 # Drosophila Connectome Simulator (hemibrain / neuPrint)
 
-Research-style, interactive 3D visualization + spiking simulation for a *subset* of the **Drosophila melanogaster** connectome.
+interactive 3D visualization and spiking simulation for a *subset* of the **Drosophila melanogaster** connectome.
 
 ## What this project does
 
