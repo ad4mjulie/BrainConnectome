@@ -1,9 +1,7 @@
 import * as THREE from "three";
 
 const COLORS = {
-  inactive: new THREE.Color(0x7de2c3), // mint
-  active: new THREE.Color(0xffc857), // warm gold
-  spike: new THREE.Color(0xff4d8b), // magenta
+  inactive: new THREE.Color(0x7de2c3),
   incoming: new THREE.Color(0x9bff7a),
   outgoing: new THREE.Color(0xff9bd2),
 };
@@ -104,6 +102,8 @@ export class ConnectomeRenderer {
 
     this.selectedIndex = null;
 
+    this.neuronActivity = null; // Float32Array per instance
+
     this.maxPulses = 2200;
     this.pulses = []; // {a,b,t0,dur}
     this.pulsePositions = new Float32Array(this.maxPulses * 3);
@@ -127,6 +127,11 @@ export class ConnectomeRenderer {
 
     this.flashUntil = new Float64Array(0);
 
+    this.neuronShaders = null;
+    this.synapseShaders = null;
+
+    this.clock = new THREE.Clock();
+
     this.resize();
     window.addEventListener("resize", () => this.resize());
   }
@@ -144,6 +149,9 @@ export class ConnectomeRenderer {
   }
 
   setConnectome(neurons, connections) {
+    if (!this.neuronShaders || !this.synapseShaders) {
+      throw new Error("Shaders not loaded; call loadShaders() first.");
+    }
     this.neuronIds = neurons.neuron_ids;
     this.neuronTypes = neurons.types || new Array(this.neuronIds.length).fill(null);
 
@@ -187,15 +195,19 @@ export class ConnectomeRenderer {
   _buildNeuronMesh(N) {
     if (this.neuronMesh) this.scene.remove(this.neuronMesh);
 
-    const geom = new THREE.SphereGeometry(0.85, 14, 14);
-    const mat = new THREE.MeshStandardMaterial({
-      vertexColors: true,
+    const geom = new THREE.SphereGeometry(0.85, 18, 18);
+    const activityAttr = new THREE.InstancedBufferAttribute(new Float32Array(N), 1);
+    geom.setAttribute("activity", activityAttr);
+    this.neuronActivity = activityAttr.array;
+
+    const mat = new THREE.ShaderMaterial({
+      vertexShader: this.neuronShaders.vert,
+      fragmentShader: this.neuronShaders.frag,
       transparent: true,
-      opacity: 0.92,
-      roughness: 0.35,
-      metalness: 0.1,
-      emissive: new THREE.Color(0x0b1226),
-      emissiveIntensity: 0.35,
+      depthWrite: false,
+      uniforms: {
+        activityLevel: { value: 1.0 },
+      },
     });
 
     const mesh = new THREE.InstancedMesh(geom, mat, N);
@@ -221,7 +233,6 @@ export class ConnectomeRenderer {
       this._tmpScale.set(size, size, size);
       m.compose(this._tmpA, this._tmpQuat, this._tmpScale);
       mesh.setMatrixAt(i, m);
-
       colors[i * 3] = COLORS.inactive.r;
       colors[i * 3 + 1] = COLORS.inactive.g;
       colors[i * 3 + 2] = COLORS.inactive.b;
@@ -238,6 +249,7 @@ export class ConnectomeRenderer {
 
     const M = pre.length;
     const positions = new Float32Array(M * 2 * 3);
+    const tpos = new Float32Array(M * 2);
     for (let e = 0; e < M; e++) {
       const a = pre[e];
       const b = post[e];
@@ -254,15 +266,22 @@ export class ConnectomeRenderer {
       positions[o + 3] = bx;
       positions[o + 4] = by;
       positions[o + 5] = bz;
+      tpos[e * 2] = 0.0;
+      tpos[e * 2 + 1] = 1.0;
     }
 
     const geom = new THREE.BufferGeometry();
     geom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    const mat = new THREE.LineBasicMaterial({
-      color: 0x63b0ff,
+    geom.setAttribute("tpos", new THREE.BufferAttribute(tpos, 1));
+    const mat = new THREE.ShaderMaterial({
+      vertexShader: this.synapseShaders.vert,
+      fragmentShader: this.synapseShaders.frag,
       transparent: true,
-      opacity: 0.07,
       depthWrite: false,
+      uniforms: {
+        time: { value: 0.0 },
+        signalStrength: { value: 0.5 },
+      },
     });
     const lines = new THREE.LineSegments(geom, mat);
     this.synapseLines = lines;
@@ -342,22 +361,14 @@ export class ConnectomeRenderer {
   updateActivity(activity, spikes) {
     if (!this.neuronMesh) return;
     const N = this.neuronIds.length;
-    const colors = this.neuronMesh.instanceColor.array;
-
-    const spikeSet = new Set(spikes);
-    const activeThreshold = 0.18;
     const now = performance.now();
-
+    const spikeSet = new Set(spikes);
     for (let i = 0; i < N; i++) {
-      let c = COLORS.inactive;
-      if (spikeSet.has(i) || (this.flashUntil[i] && this.flashUntil[i] > now)) c = COLORS.spike;
-      else if (activity[i] > activeThreshold) c = COLORS.active;
-      colors[i * 3] = c.r;
-      colors[i * 3 + 1] = c.g;
-      colors[i * 3 + 2] = c.b;
+      const spikeFlash = this.flashUntil[i] && this.flashUntil[i] > now ? 1.0 : 0.0;
+      const val = Math.min(1.0, activity[i] + (spikeSet.has(i) ? 1.0 : 0.0) + spikeFlash);
+      this.neuronActivity[i] = val;
     }
-    this.neuronMesh.instanceColor.needsUpdate = true;
-
+    this.neuronMesh.geometry.attributes.activity.needsUpdate = true;
     this._spawnPulses(spikes);
   }
 
@@ -422,6 +433,14 @@ export class ConnectomeRenderer {
 
   render(controls) {
     if (controls) controls.update();
+    const delta = this.clock.getDelta();
+    const t = this.clock.elapsedTime;
+    if (this.synapseLines && this.synapseLines.material.uniforms?.time) {
+      this.synapseLines.material.uniforms.time.value = t;
+    }
+    if (this.neuronMesh && this.neuronMesh.material.uniforms?.activityLevel) {
+      this.neuronMesh.material.uniforms.activityLevel.value = 1.0;
+    }
     this._updatePulses();
     this.renderer.render(this.scene, this.camera);
   }
@@ -437,5 +456,18 @@ export class ConnectomeRenderer {
     if (!this.flashUntil || index == null) return;
     if (index < 0 || index >= this.flashUntil.length) return;
     this.flashUntil[index] = performance.now() + ms;
+  }
+
+  async loadShaders() {
+    if (this.neuronShaders && this.synapseShaders) return;
+    const load = async (path) => fetch(path).then((r) => r.text());
+    const [nVert, nFrag, sVert, sFrag] = await Promise.all([
+      load("/static/shaders/neuron.vert"),
+      load("/static/shaders/neuron.frag"),
+      load("/static/shaders/synapse.vert"),
+      load("/static/shaders/synapse.frag"),
+    ]);
+    this.neuronShaders = { vert: nVert, frag: nFrag };
+    this.synapseShaders = { vert: sVert, frag: sFrag };
   }
 }

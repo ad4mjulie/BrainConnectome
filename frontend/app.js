@@ -36,6 +36,7 @@ function setSelected(meta) {
 }
 
 async function loadConnectome() {
+  await renderer.loadShaders();
   const [neurons, connections] = await Promise.all([
     fetch("/neurons").then((r) => r.json()),
     fetch("/connections").then((r) => r.json()),
