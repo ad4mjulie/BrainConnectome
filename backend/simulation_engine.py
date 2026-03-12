@@ -61,6 +61,9 @@ class SimulationEngine:
         self._stop_evt = threading.Event()
         self._thread: threading.Thread | None = None
 
+        self._subscribers: set[queue.SimpleQueue[ActivitySnapshot]] = set()
+        self._sub_lock = threading.Lock()
+
         self._b2: Any | None = None
         self._net: Any | None = None
         self._group: Any | None = None
@@ -100,6 +103,38 @@ class SimulationEngine:
                 activity=self._snapshot.activity.copy(),
                 spikes=self._snapshot.spikes.copy(),
             )
+
+    def update_params(self, new_params: dict[str, Any]) -> None:
+        """Update simulation parameters in real-time."""
+        with self._lock:
+            for k, v in new_params.items():
+                if hasattr(self._params, k):
+                    setattr(self._params, k, v)
+                else:
+                    logger.warning("LIFParams has no attribute %s", k)
+            
+            # Some parameters might need re-syncing with the Brian2 objects
+            # but for LIF models, most can be updated by just updating the
+            # namespace or shared variables if they were set up that way.
+            # Here we just update the local self._params. 
+            # Note: v_th, v_reset, etc. in G are already variables in the Brian namespace
+            # but they were passed as constants during build.
+            # To make them truly dynamic, we'd need to map them to G variables.
+            # For now, we'll focus on weights and rates which are easier.
+            if "background_rate_hz" in new_params and hasattr(self, "_bg_group"):
+                bg = getattr(self, "_bg_group", None)
+                if bg:
+                    bg.rates = new_params["background_rate_hz"] * b2.Hz
+
+    def subscribe(self) -> queue.SimpleQueue[ActivitySnapshot]:
+        q: queue.SimpleQueue[ActivitySnapshot] = queue.SimpleQueue()
+        with self._sub_lock:
+            self._subscribers.add(q)
+        return q
+
+    def unsubscribe(self, q: queue.SimpleQueue[ActivitySnapshot]) -> None:
+        with self._sub_lock:
+            self._subscribers.discard(q)
 
     def stimulate(
         self,
@@ -176,6 +211,7 @@ class SimulationEngine:
         objs: list[Any] = [G, S]
         if p.background_rate_hz > 0 and p.background_weight_pA != 0:
             BG = b2.PoissonGroup(N, rates=p.background_rate_hz * b2.Hz)
+            self._bg_group = BG
             BG_S = b2.Synapses(BG, G, model="w: amp", on_pre="I_syn_post += w")
             BG_S.connect(j="i")  # one-to-one
             BG_S.w = p.background_weight_pA * b2.pA
@@ -247,6 +283,11 @@ class SimulationEngine:
                     activity=snap.activity.copy(),
                     spikes=snap.spikes.copy(),
                 )
+
+            # Broadcast to WebSocket subscribers
+            with self._sub_lock:
+                for q in self._subscribers:
+                    q.put(self._snapshot)
 
             # Pace the loop to roughly real-time.
             elapsed = time.perf_counter() - t0

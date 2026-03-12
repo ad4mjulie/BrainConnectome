@@ -9,8 +9,10 @@ __pycache__/
 venv/
 env/
 
-data/cache/
-data/*.nx.pkl
+*.nx.pkl
+python_libs/
+frontend/meshes/
+frontend/brain_mesh.glb
 data/*.parquet
-
+*.parquet
 backend/.env

@@ -18,9 +18,15 @@ const el = {
   pulseStrength: document.getElementById("pulseStrength"),
   hopSelect: document.getElementById("hopSelect"),
   toggleSynapses: document.getElementById("toggleSynapses"),
+  toggleBrain: document.getElementById("toggleBrain"),
   fpsLabel: document.getElementById("fpsLabel"),
   screenshotBtn: document.getElementById("screenshotBtn"),
   tooltip: document.getElementById("tooltip"),
+  flyBtn: document.getElementById("flyBtn"),
+  resetSimBtn: document.getElementById("resetSimBtn"),
+  paramVTh: document.getElementById("param_v_th_mV"),
+  paramTauM: document.getElementById("param_tau_m_ms"),
+  paramBGRate: document.getElementById("param_background_rate_hz"),
 };
 
 const renderer = new ConnectomeRenderer(el.container);
@@ -43,6 +49,7 @@ function setSelected(meta) {
   el.selOut.textContent = meta ? String(meta.outCount) : "—";
   el.selIn.textContent = meta ? String(meta.inCount) : "—";
   el.stimBtn.disabled = selectedIndex == null;
+  el.flyBtn.disabled = selectedIndex == null;
 }
 
 async function loadConnectome() {
@@ -99,6 +106,14 @@ function attachInteraction() {
     }
   });
 
+  el.flyBtn.addEventListener("click", () => {
+    if (selectedIndex == null) return;
+    const target = renderer.flyTo(selectedIndex);
+    if (target && controls) {
+      controls.target.set(target.x, target.y, target.z);
+    }
+  });
+
   window.addEventListener("keydown", (ev) => {
     if (ev.key === "n" || ev.key === "N") {
       if (selectedIndex == null) return;
@@ -137,23 +152,78 @@ function attachInteraction() {
     renderer.toggleSynapses(!hideSynapses);
     el.toggleSynapses.textContent = hideSynapses ? "Show" : "Hide";
   });
+  el.toggleBrain.addEventListener("click", () => {
+    renderer.brainGroup.visible = !renderer.brainGroup.visible;
+    el.toggleBrain.textContent = renderer.brainGroup.visible ? "Hide" : "Show";
+  });
   el.screenshotBtn.addEventListener("click", () => {
     renderer.captureScreenshot();
   });
+
+  // Simulation parameter listeners
+  const updateParam = async (key, val) => {
+    try {
+      await fetch("/params", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [key]: parseFloat(val) }),
+      });
+    } catch (e) {
+      console.error("Param update failed:", e);
+    }
+  };
+
+  el.paramVTh.addEventListener("change", (e) => updateParam("v_th_mV", e.target.value));
+  el.paramTauM.addEventListener("change", (e) => updateParam("tau_m_ms", e.target.value));
+  el.paramBGRate.addEventListener("change", (e) => updateParam("background_rate_hz", e.target.value));
+
+  el.resetSimBtn.addEventListener("click", async () => {
+    // Current backend doesn't have a direct 'reset' yet, but we can restart sim
+    // Or just clear activity on frontend for now. 
+    // Ideally we add POST /reset to server.py
+    setHint("Resetting activity visualization...");
+    renderer.updateActivity(new Float32Array(renderer.neuronIds.length).fill(0), []);
+  });
 }
 
-async function pollActivityLoop() {
-  while (true) {
-    try {
-      const a = await fetch("/activity").then((r) => r.json());
+async function activityWebSocketLoop() {
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const wsUrl = `${protocol}//${window.location.host}/ws/activity`;
+
+  function connect() {
+    console.log("Connecting to WebSocket:", wsUrl);
+    const ws = new WebSocket(wsUrl);
+
+    ws.onmessage = (event) => {
+      const a = JSON.parse(event.data);
       el.simTime.textContent = `${a.t_ms.toFixed(1)} ms`;
       el.simSpikes.textContent = String(a.spikes.length);
       renderer.updateActivity(a.activity, a.spikes);
-    } catch {
-      setHint("Waiting for backend…");
-    }
-    // ~12 Hz update keeps JSON traffic manageable for 1k–5k neurons.
-    await new Promise((r) => setTimeout(r, 85));
+    };
+
+    ws.onclose = () => {
+      console.warn("WebSocket closed. Reconnecting in 2s...");
+      setHint("Connection lost. Reconnecting...");
+      setTimeout(connect, 2000);
+    };
+
+    ws.onerror = (err) => {
+      console.error("WebSocket error:", err);
+      ws.close();
+    };
+  }
+
+  connect();
+}
+
+async function syncParams() {
+  try {
+    const params = await fetch("/params").then(r => r.json());
+    el.paramVTh.value = params.v_th_mV;
+    el.paramTauM.value = params.tau_m_ms;
+    el.paramBGRate.value = params.background_rate_hz;
+  } catch (e) {
+    console.error("Failed to sync params:", e);
   }
 }
 
@@ -182,8 +252,14 @@ async function main() {
     await loadConnectome();
     console.log("Connectome loaded, attaching interaction...");
     attachInteraction();
+    await syncParams();
+
+    // Attempt to load biological ROI meshes
+    renderer.loadMesh("EB");
+    renderer.loadMesh("hemibrain");
+
     animate();
-    pollActivityLoop();
+    activityWebSocketLoop();
   } catch (e) {
     console.error("Initialization Error:", e); // This will show in the console
     setHint(`Error: ${e.message}`);

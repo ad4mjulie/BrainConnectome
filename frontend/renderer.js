@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
+import { ConvexGeometry } from "three/addons/geometries/ConvexGeometry.js";
 
 const COLORS = {
   inactive: new THREE.Color(0x7de2c3),
@@ -97,7 +99,11 @@ export class ConnectomeRenderer {
 
     this.neuronMesh = null; // InstancedMesh
     this.synapseLines = null; // LineSegments
-    this.highlightIncoming = null;
+    this.brainGroup = new THREE.Group();
+    this.scene.add(this.brainGroup);
+
+    this.center = new THREE.Vector3();
+    this.scale = 1.0;
     this.highlightOutgoing = null;
 
     this.selectedIndex = null;
@@ -137,6 +143,10 @@ export class ConnectomeRenderer {
     this.pulseSpeed = 1.6;
     this.pulseStrength = 0.8;
 
+    this.targetCameraPos = new THREE.Vector3().copy(this.camera.position);
+    this.targetLookAt = new THREE.Vector3(0, 0, 0);
+    this.cameraLerp = 1.0;
+
     this.resize();
     window.addEventListener("resize", () => this.resize());
   }
@@ -170,8 +180,90 @@ export class ConnectomeRenderer {
       flat[i * 3 + 1] = p[1];
       flat[i * 3 + 2] = p[2];
     }
-    centerAndScalePositions(flat);
+    const result = centerAndScalePositions(flat);
+    this.center.copy(result.center);
+    this.scale = result.scale;
     this.positions = flat;
+
+    this.generateBrainShell();
+  }
+
+  generateBrainShell() {
+    this.brainGroup.clear();
+    if (!this.positions) return;
+
+    // Use a subset of points for the hull to keep it smooth/fast
+    const points = [];
+    const step = Math.max(1, Math.floor(this.positions.length / 3 / 400));
+    for (let i = 0; i < this.positions.length / 3; i += step) {
+      points.push(new THREE.Vector3(
+        this.positions[i * 3],
+        this.positions[i * 3 + 1],
+        this.positions[i * 3 + 2]
+      ));
+    }
+
+    try {
+      const geom = new ConvexGeometry(points);
+      const mat = new THREE.MeshPhysicalMaterial({
+        color: 0x88bbff,
+        metalness: 0.1,
+        roughness: 0.1,
+        transparent: true,
+        opacity: 0.35,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        transmission: 0.2, // Less transparent
+        thickness: 1.0,
+      });
+      const mesh = new THREE.Mesh(geom, mat);
+
+      // Add a wireframe for that "digital brain" look
+      const wireMat = new THREE.MeshBasicMaterial({
+        color: 0xbbddff,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.03,
+      });
+      const wire = new THREE.Mesh(geom, wireMat);
+
+      this.brainGroup.add(mesh);
+      this.brainGroup.add(wire);
+    } catch (e) {
+      console.warn("Could not generate brain shell:", e);
+    }
+  }
+
+  async loadMesh(roi) {
+    const loader = new OBJLoader();
+    const clean_roi = roi.replace("(", "_").replace(")", "_");
+    try {
+      const obj = await new Promise((resolve, reject) => {
+        loader.load(`/mesh/${clean_roi}`, resolve, undefined, reject);
+      });
+
+      const mat = new THREE.MeshPhongMaterial({
+        color: 0x444444,
+        transparent: true,
+        opacity: 0.15,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
+
+      obj.traverse((child) => {
+        if (child.isMesh) {
+          child.material = mat;
+        }
+      });
+
+      // Align to biological coords then apply simulator's centering/scaling
+      obj.position.sub(this.center).multiplyScalar(this.scale);
+      obj.scale.multiplyScalar(this.scale);
+
+      this.brainGroup.add(obj);
+    } catch (e) {
+      console.warn(`Could not load mesh for ${roi}:`, e);
+    }
 
     this.synPre = Int32Array.from(connections.pre);
     this.synPost = Int32Array.from(connections.post);
@@ -489,7 +581,36 @@ export class ConnectomeRenderer {
       this.neuronMesh.material.uniforms.activityLevel.value = 1.0;
     }
     this._updatePulses();
+    this._updateCamera(delta);
     this.renderer.render(this.scene, this.camera);
+  }
+
+  _updateCamera(dt) {
+    if (this.cameraLerp >= 1.0) return;
+    this.cameraLerp = Math.min(1.0, this.cameraLerp + dt * 2.5);
+    const t = 1.0 - Math.pow(1.0 - this.cameraLerp, 3); // easeOutCubic
+
+    this.camera.position.lerpVectors(this.startCameraPos, this.targetCameraPos, t);
+    // Smoothly update controls target if they exist
+    // This is tricky with OrbitControls, but we can set them directly
+  }
+
+  flyTo(index) {
+    if (index == null || !this.positions) return;
+    const x = this.positions[index * 3];
+    const y = this.positions[index * 3 + 1];
+    const z = this.positions[index * 3 + 2];
+
+    this.startCameraPos = this.camera.position.clone();
+
+    // Calculate a nice offset position
+    const offset = new THREE.Vector3(0, 40, 100);
+    this.targetCameraPos.set(x, y, z).add(offset);
+    this.targetLookAt.set(x, y, z);
+    this.cameraLerp = 0;
+
+    // Update OrbitControls target
+    return { x, y, z };
   }
 
   stimulateVisual(index) {
@@ -499,7 +620,7 @@ export class ConnectomeRenderer {
     this._spawnPulsesFrom(index, 18, now);
   }
 
-  flashNeuron(index, ms = 300) {
+  flashNeuron(index, ms = 150) {
     if (!this.flashUntil || index == null) return;
     if (index < 0 || index >= this.flashUntil.length) return;
     this.flashUntil[index] = performance.now() + ms;

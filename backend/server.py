@@ -49,7 +49,7 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     def _startup() -> None:
-        connectome_path = os.getenv("CONNECTOME_PATH", str(root / "data" / "connectome_subset.parquet"))
+        connectome_path = os.getenv("CONNECTOME_PATH", str(root / "connectome_subset_EB.parquet"))
         max_neurons = int(os.getenv("MAX_NEURONS", "3000"))
         max_edges = int(os.getenv("MAX_EDGES", "40000"))
 

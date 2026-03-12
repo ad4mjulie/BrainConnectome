@@ -1,13 +1,14 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Drosophila Connectome Simulator</title>
-    <link rel="stylesheet" href="/static/style.css" />
 
-    <!-- Three.js via CDN (no build step). For offline use, see README. -->
-    <script type="importmap">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Drosophila Connectome Simulator</title>
+  <link rel="stylesheet" href="/static/style.css" />
+
+  <!-- Three.js via CDN (no build step). For offline use, see README. -->
+  <script type="importmap">
       {
         "imports": {
           "three": "https://unpkg.com/three@0.162.0/build/three.module.js",
@@ -15,87 +16,113 @@
         }
       }
     </script>
-  </head>
-  <body>
-    <div id="app">
-      <div id="hud">
-        <div class="panel">
-          <div class="title">Drosophila Connectome Simulator</div>
-          <div class="row">
-            <span class="label">Click</span><span>Select neuron</span>
-          </div>
-          <div class="row">
-            <span class="label">Shift+Click</span><span>Stimulate neuron</span>
-          </div>
-        </div>
+</head>
 
-        <div class="panel" id="simPanel">
-          <div class="row">
-            <span class="label">t</span><span id="simTime">0 ms</span>
-          </div>
-          <div class="row">
-            <span class="label">Spikes</span><span id="simSpikes">0</span>
-          </div>
-          <div class="row">
-            <span class="label">Neurons</span><span id="simNeurons">—</span>
-          </div>
-          <div class="row">
-            <span class="label">Synapses</span><span id="simEdges">—</span>
-          </div>
+<body>
+  <div id="app">
+    <div id="hud">
+      <div class="panel">
+        <div class="title">Drosophila Connectome Simulator</div>
+        <div class="row">
+          <span class="label">Click</span><span>Select neuron</span>
         </div>
-
-        <div class="panel" id="neuronPanel">
-          <div class="subtitle">Selected neuron</div>
-          <div class="meta">
-            Index is the 0-based position used by the simulator. Type is the neuPrint cell type label (if available).
-          </div>
-          <div class="row"><span class="label">Index</span><span id="selIndex">—</span></div>
-          <div class="row"><span class="label">Neuron ID</span><span id="selId">—</span></div>
-          <div class="row"><span class="label">Type</span><span id="selType">—</span></div>
-          <div class="row"><span class="label">Out</span><span id="selOut">—</span></div>
-          <div class="row"><span class="label">In</span><span id="selIn">—</span></div>
-          <div class="actions">
-            <button id="stimBtn" disabled>Stimulate</button>
-          </div>
-        </div>
-
-        <div class="panel" id="controlsPanel">
-          <div class="subtitle">Visualization</div>
-          <div class="row"><span class="label">Legend</span><span id="legendSwatch">inactive → active → spike</span></div>
-          <div class="row slider">
-            <span class="label">Pulse speed</span>
-            <input id="pulseSpeed" type="range" min="0.5" max="3.0" step="0.1" value="1.6" />
-          </div>
-          <div class="row slider">
-            <span class="label">Pulse brightness</span>
-            <input id="pulseStrength" type="range" min="0.2" max="2.0" step="0.1" value="0.8" />
-          </div>
-          <div class="row slider">
-            <span class="label">Hop isolate</span>
-            <select id="hopSelect">
-              <option value="0">Off</option>
-              <option value="1" selected>1-hop</option>
-              <option value="2">2-hop</option>
-            </select>
-          </div>
-          <div class="row">
-            <span class="label">Synapses</span>
-            <button id="toggleSynapses">Hide</button>
-          </div>
-          <div class="row">
-            <span class="label">FPS</span><span id="fpsLabel">—</span>
-          </div>
-          <div class="actions">
-            <button id="screenshotBtn">Screenshot</button>
-          </div>
+        <div class="row">
+          <span class="label">Shift+Click</span><span>Stimulate neuron</span>
         </div>
       </div>
 
-      <div id="canvasContainer"></div>
-      <div id="hint">Loading connectome…</div>
-      <div id="tooltip" class="tooltip hidden"></div>
+      <div class="panel" id="simPanel">
+        <div class="row">
+          <span class="label">t</span><span id="simTime">0 ms</span>
+        </div>
+        <div class="row">
+          <span class="label">Spikes</span><span id="simSpikes">0</span>
+        </div>
+        <div class="row">
+          <span class="label">Neurons</span><span id="simNeurons">—</span>
+        </div>
+        <div class="row">
+          <span class="label">Synapses</span><span id="simEdges">—</span>
+        </div>
+      </div>
+
+      <div class="panel" id="neuronPanel">
+        <div class="subtitle">Selected neuron</div>
+        <div class="meta">
+          Index is the 0-based position used by the simulator. Type is the neuPrint cell type label (if available).
+        </div>
+        <div class="row"><span class="label">Index</span><span id="selIndex">—</span></div>
+        <div class="row"><span class="label">Neuron ID</span><span id="selId">—</span></div>
+        <div class="row"><span class="label">Type</span><span id="selType">—</span></div>
+        <div class="row"><span class="label">Out</span><span id="selOut">—</span></div>
+        <div class="row"><span class="label">In</span><span id="selIn">—</span></div>
+        <div class="actions">
+          <button id="stimBtn" disabled>Stimulate</button>
+          <button id="flyBtn" disabled>Fly-to</button>
+        </div>
+      </div>
+
+      <div class="panel" id="controlsPanel">
+        <div class="subtitle">Visualization</div>
+        <div class="row"><span class="label">Legend</span><span id="legendSwatch">inactive → active → spike</span></div>
+        <div class="row slider">
+          <span class="label">Pulse speed</span>
+          <input id="pulseSpeed" type="range" min="0.5" max="3.0" step="0.1" value="1.6" />
+        </div>
+        <div class="row slider">
+          <span class="label">Pulse brightness</span>
+          <input id="pulseStrength" type="range" min="0.2" max="2.0" step="0.1" value="0.8" />
+        </div>
+        <div class="row slider">
+          <span class="label">Hop isolate</span>
+          <select id="hopSelect">
+            <option value="0">Off</option>
+            <option value="1" selected>1-hop</option>
+            <option value="2">2-hop</option>
+          </select>
+        </div>
+        <div class="row">
+          <span class="label">Synapses</span>
+          <button id="toggleSynapses">Hide</button>
+        </div>
+        <div class="row">
+          <span class="label">Brain Shell</span>
+          <button id="toggleBrain">Hide</button>
+        </div>
+        <div class="row">
+          <span class="label">FPS</span><span id="fpsLabel">—</span>
+        </div>
+        <div class="actions">
+          <button id="screenshotBtn">Screenshot</button>
+        </div>
+      </div>
+
+      <div class="panel" id="settingsPanel">
+        <div class="subtitle">Simulation Settings</div>
+        <div class="row slider">
+          <span class="label">Threshold</span>
+          <input id="param_v_th_mV" type="range" min="-60" max="-40" step="1" value="-50" />
+        </div>
+        <div class="row slider">
+          <span class="label">Tau Mem</span>
+          <input id="param_tau_m_ms" type="range" min="5" max="50" step="1" value="20" />
+        </div>
+        <div class="row slider">
+          <span class="label">BG Rate</span>
+          <input id="param_background_rate_hz" type="range" min="0" max="10" step="0.1" value="0.5" />
+        </div>
+        <div class="actions">
+          <button id="resetSimBtn">Reset Sim</button>
+        </div>
+      </div>
     </div>
 
-    <script type="module" src="/static/app.js"></script>
-  </body>
+    <div id="canvasContainer"></div>
+    <div id="hint">Loading connectome…</div>
+    <div id="tooltip" class="tooltip hidden"></div>
+  </div>
+
+  <script type="module" src="/static/app.js"></script>
+</body>
+
 </html>

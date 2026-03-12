@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True)
+@dataclass
 class LIFParams:
     # Membrane
     v_rest_mV: float = -65.0
@@ -23,5 +23,5 @@ class LIFParams:
     background_weight_pA: float = 20.0
 
     # Visualization-friendly activity (not a biophysical state)
-    activity_tau_ms: float = 120.0
+    activity_tau_ms: float = 300.0
 
